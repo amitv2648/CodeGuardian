@@ -526,3 +526,23 @@ export const diagnosticCommands = [
   "npm test",
   "npm run build",
 ];
+
+export function cloneMockFileTree(): FileNode[] {
+  return JSON.parse(JSON.stringify(mockFileTree)) as FileNode[];
+}
+
+export function cloneMockFileContents(): Record<string, string> {
+  return { ...mockFileContents };
+}
+
+export function extractRepoNameFromUrl(url: string): string | null {
+  try {
+    const normalized = url.startsWith("http") ? url : `https://${url}`;
+    const parsed = new URL(normalized);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts.length < 2) return null;
+    return parts[1].replace(/\.git$/i, "");
+  } catch {
+    return null;
+  }
+}

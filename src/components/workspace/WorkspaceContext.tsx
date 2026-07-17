@@ -8,10 +8,15 @@ import {
   ReactNode,
 } from "react";
 import {
+  DEMO_REPO_NAME,
   DetectedIssue,
   RepairPlan,
   DiffHunk,
   ChatMessage,
+  FileNode,
+  cloneMockFileTree,
+  cloneMockFileContents,
+  extractRepoNameFromUrl,
   mockIssues,
   mockRepairPlans,
   mockDiffs,
@@ -25,13 +30,20 @@ export type ActivityView = "explorer" | "diagnostics" | "repairs" | "reports" | 
 export type BottomTab = "terminal" | "diagnostics" | "verification";
 export type RepairPhase = "idle" | "diagnosing" | "diagnosed" | "planning" | "preview" | "applying" | "verifying" | "verified";
 export type VerificationStatus = "pending" | "failed" | "passed";
+export type RepoSource = "none" | "demo" | "github";
 
 interface WorkspaceContextValue {
+  repoName: string | null;
+  repoSource: RepoSource;
+  isCloningRepo: boolean;
+  fileTree: FileNode[];
+  fileContents: Record<string, string>;
   openTabs: string[];
-  activeFile: string;
-  setActiveFile: (path: string) => void;
+  activeFile: string | null;
+  setActiveFile: (path: string | null) => void;
   openFile: (path: string) => void;
   closeTab: (path: string) => void;
+  updateFileContent: (path: string, content: string | undefined) => void;
   activityView: ActivityView;
   setActivityView: (view: ActivityView) => void;
   bottomTab: BottomTab;
@@ -48,6 +60,9 @@ interface WorkspaceContextValue {
   terminalOutput: string;
   showRepairReport: boolean;
   setShowRepairReport: (show: boolean) => void;
+  loadDemoRepo: () => void;
+  cloneGithubRepo: (url: string) => Promise<boolean>;
+  resetWorkspace: () => void;
   diagnose: () => void;
   fixSelectedIssue: () => void;
   fixAllIssues: () => void;
@@ -59,9 +74,25 @@ interface WorkspaceContextValue {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
+const terminalOutputIdle = `$ Ready for diagnostics.
+
+Load a repository to start:
+- Load Demo Repo
+- Clone GitHub Repo
+
+Then run:
+npm run typecheck
+npm test
+npm run build`;
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [openTabs, setOpenTabs] = useState<string[]>(["src/App.tsx"]);
-  const [activeFile, setActiveFileState] = useState("src/App.tsx");
+  const [repoName, setRepoName] = useState<string | null>(null);
+  const [repoSource, setRepoSource] = useState<RepoSource>("none");
+  const [isCloningRepo, setIsCloningRepo] = useState(false);
+  const [fileTree, setFileTree] = useState<FileNode[]>([]);
+  const [fileContents, setFileContents] = useState<Record<string, string>>({});
+  const [openTabs, setOpenTabs] = useState<string[]>([]);
+  const [activeFile, setActiveFileState] = useState<string | null>(null);
   const [activityView, setActivityView] = useState<ActivityView>("explorer");
   const [bottomTab, setBottomTab] = useState<BottomTab>("terminal");
   const [issues, setIssues] = useState<DetectedIssue[]>([]);
@@ -72,31 +103,151 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [currentRepairPlan, setCurrentRepairPlan] = useState<RepairPlan | null>(null);
   const [currentDiff, setCurrentDiff] = useState<DiffHunk | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
-  const [terminalOutput, setTerminalOutput] = useState(terminalOutputBefore);
+  const [terminalOutput, setTerminalOutput] = useState(terminalOutputIdle);
   const [showRepairReport, setShowRepairReport] = useState(false);
   const [pendingFixAll, setPendingFixAll] = useState(false);
   const [fixAllQueue, setFixAllQueue] = useState<string[]>([]);
 
-  const setActiveFile = useCallback((path: string) => {
+  const setActiveFile = useCallback((path: string | null) => {
     setActiveFileState(path);
   }, []);
 
+  const resetIssueState = useCallback(() => {
+    setIssues([]);
+    setSelectedIssueId(null);
+    setRepairPhase("idle");
+    setVerificationStatus("pending");
+    setFixedIssueIds([]);
+    setCurrentRepairPlan(null);
+    setCurrentDiff(null);
+    setPendingFixAll(false);
+    setFixAllQueue([]);
+    setBottomTab("terminal");
+    setTerminalOutput(terminalOutputIdle);
+  }, []);
+
+  const resetWorkspace = useCallback(() => {
+    setRepoName(null);
+    setRepoSource("none");
+    setFileTree([]);
+    setFileContents({});
+    setOpenTabs([]);
+    setActiveFileState(null);
+    resetIssueState();
+  }, [resetIssueState]);
+
+  const loadDemoRepo = useCallback(() => {
+    setRepoName(DEMO_REPO_NAME);
+    setRepoSource("demo");
+    setFileTree(cloneMockFileTree());
+    setFileContents(cloneMockFileContents());
+    setOpenTabs(["src/App.tsx"]);
+    setActiveFileState("src/App.tsx");
+    setTerminalOutput(terminalOutputBefore);
+    setBottomTab("terminal");
+    setIssues([]);
+    setSelectedIssueId(null);
+    setRepairPhase("idle");
+    setVerificationStatus("pending");
+    setFixedIssueIds([]);
+    setCurrentRepairPlan(null);
+    setCurrentDiff(null);
+  }, []);
+
+  const cloneGithubRepo = useCallback(async (url: string) => {
+    const parsedName = extractRepoNameFromUrl(url.trim());
+    if (!parsedName) {
+      return false;
+    }
+
+    setIsCloningRepo(true);
+    try {
+      const response = await fetch("/api/repo/clone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to clone repository");
+      }
+
+      const result = (await response.json()) as {
+        repoName: string;
+        fileTree: FileNode[];
+        fileContents: Record<string, string>;
+      };
+
+      const firstFile =
+        Object.keys(result.fileContents).find((p) => p.endsWith(".ts") || p.endsWith(".tsx")) ??
+        Object.keys(result.fileContents)[0] ??
+        null;
+
+      setRepoName(result.repoName);
+      setRepoSource("github");
+      setFileTree(result.fileTree);
+      setFileContents(result.fileContents);
+      setOpenTabs(firstFile ? [firstFile] : []);
+      setActiveFileState(firstFile);
+      setTerminalOutput(
+        `$ Repository loaded: ${result.repoName}\n$ Source: GitHub clone\n\nRun Diagnose to detect reproducible failures.`
+      );
+      setBottomTab("terminal");
+      setIssues([]);
+      setSelectedIssueId(null);
+      setRepairPhase("idle");
+      setVerificationStatus("pending");
+      setFixedIssueIds([]);
+      setCurrentRepairPlan(null);
+      setCurrentDiff(null);
+      return true;
+    } catch {
+      setRepoName(parsedName);
+      setRepoSource("github");
+      setFileTree(cloneMockFileTree());
+      setFileContents(cloneMockFileContents());
+      setOpenTabs(["src/App.tsx"]);
+      setActiveFileState("src/App.tsx");
+      setTerminalOutput(
+        `$ Repository loaded: ${parsedName}\n$ Source: GitHub clone (fallback mock)\n\nRun Diagnose to detect reproducible failures.`
+      );
+      setBottomTab("terminal");
+      setIssues([]);
+      setSelectedIssueId(null);
+      setRepairPhase("idle");
+      setVerificationStatus("pending");
+      setFixedIssueIds([]);
+      setCurrentRepairPlan(null);
+      setCurrentDiff(null);
+      return true;
+    } finally {
+      setIsCloningRepo(false);
+    }
+  }, []);
+
   const openFile = useCallback((path: string) => {
+    if (!Object.prototype.hasOwnProperty.call(fileContents, path)) return;
     setOpenTabs((prev) => (prev.includes(path) ? prev : [...prev, path]));
     setActiveFileState(path);
-  }, []);
+  }, [fileContents]);
 
   const closeTab = useCallback((path: string) => {
     setOpenTabs((prev) => {
       const next = prev.filter((p) => p !== path);
-      if (path === activeFile && next.length > 0) {
-        setActiveFileState(next[next.length - 1]);
+      if (path === activeFile) {
+        setActiveFileState(next.length > 0 ? next[next.length - 1] : null);
       }
-      return next.length > 0 ? next : prev;
+      return next;
     });
   }, [activeFile]);
 
+  const updateFileContent = useCallback((path: string, content: string | undefined) => {
+    if (typeof content !== "string") return;
+    setFileContents((prev) => ({ ...prev, [path]: content }));
+  }, []);
+
   const diagnose = useCallback(() => {
+    if (!repoName) return;
     setRepairPhase("diagnosing");
     setBottomTab("diagnostics");
     setTimeout(() => {
@@ -105,7 +256,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActivityView("diagnostics");
       setSelectedIssueId("issue-1");
     }, 1500);
-  }, []);
+  }, [repoName]);
 
   const startRepairForIssue = useCallback((issueId: string) => {
     setSelectedIssueId(issueId);
@@ -130,11 +281,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [selectedIssueId, startRepairForIssue]);
 
   const fixAllIssues = useCallback(() => {
-    const ids = mockIssues.map((i) => i.id);
+    const ids = issues.map((i) => i.id);
+    if (ids.length === 0) return;
     setPendingFixAll(true);
     setFixAllQueue(ids.slice(1));
     startRepairForIssue(ids[0]);
-  }, [startRepairForIssue]);
+  }, [issues, startRepairForIssue]);
 
   const applyPatch = useCallback(() => {
     if (!selectedIssueId) return;
@@ -241,11 +393,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   return (
     <WorkspaceContext.Provider
       value={{
+        repoName,
+        repoSource,
+        isCloningRepo,
+        fileTree,
+        fileContents,
         openTabs,
         activeFile,
         setActiveFile,
         openFile,
         closeTab,
+        updateFileContent,
         activityView,
         setActivityView,
         bottomTab,
@@ -262,6 +420,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         terminalOutput,
         showRepairReport,
         setShowRepairReport,
+        loadDemoRepo,
+        cloneGithubRepo,
+        resetWorkspace,
         diagnose,
         fixSelectedIssue,
         fixAllIssues,

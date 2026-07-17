@@ -4,7 +4,7 @@ import { useWorkspace } from "./WorkspaceContext";
 import { FileExplorer } from "./FileExplorer";
 
 export function LeftSidebar() {
-  const { activityView, issues, fixedIssueIds, setShowRepairReport } = useWorkspace();
+  const { activityView, issues, fixedIssueIds, repoName, repoSource, setShowRepairReport } = useWorkspace();
 
   const titles: Record<string, string> = {
     explorer: "Explorer",
@@ -36,7 +36,9 @@ export function LeftSidebar() {
           <div className="p-3 text-xs space-y-2 cg-scrollbar overflow-y-auto h-full">
             {issues.length === 0 ? (
               <p style={{ color: "var(--cg-text-muted)" }}>
-                No diagnostics yet. Click Diagnose in the top bar.
+                {repoName
+                  ? "No diagnostics yet. Click Diagnose in the top bar."
+                  : "No repository loaded. Load a repo before running diagnostics."}
               </p>
             ) : (
               issues.map((issue) => (
@@ -97,7 +99,10 @@ export function LeftSidebar() {
             <div>
               <div className="font-semibold mb-1">Repository</div>
               <p className="font-mono" style={{ color: "var(--cg-text-muted)" }}>
-                codeguardian-demo-broken-portfolio
+                {repoName ?? "None"}
+              </p>
+              <p style={{ color: "var(--cg-text-muted)" }}>
+                Source: {repoSource === "none" ? "empty workspace" : repoSource}
               </p>
             </div>
             <div>

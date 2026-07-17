@@ -2,7 +2,7 @@
 
 import { ChevronRight, File, Folder } from "lucide-react";
 import { useState } from "react";
-import { FileNode, mockFileTree } from "@/lib/mockData";
+import { FileNode } from "@/lib/mockData";
 import { useWorkspace } from "./WorkspaceContext";
 
 function FileTreeItem({ node, depth = 0 }: { node: FileNode; depth?: number }) {
@@ -60,9 +60,19 @@ function FileTreeItem({ node, depth = 0 }: { node: FileNode; depth?: number }) {
 }
 
 export function FileExplorer() {
+  const { fileTree } = useWorkspace();
+
+  if (fileTree.length === 0) {
+    return (
+      <div className="p-3 text-xs" style={{ color: "var(--cg-text-muted)" }}>
+        Empty IDE. Load a demo repo or clone a GitHub repo to begin debugging.
+      </div>
+    );
+  }
+
   return (
     <div className="cg-scrollbar overflow-y-auto h-full py-1">
-      {mockFileTree.map((node) => (
+      {fileTree.map((node) => (
         <FileTreeItem key={node.path} node={node} />
       ))}
     </div>

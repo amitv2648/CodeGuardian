@@ -88,24 +88,23 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
-          <button
-            type="button"
-            className="flex items-center gap-3 p-4 rounded-lg border text-left cursor-not-allowed opacity-60"
+          <Link
+            href="/workspace"
+            className="flex items-center gap-3 p-4 rounded-lg border no-underline"
             style={{
               background: "var(--cg-bg-secondary)",
               borderColor: "var(--cg-border)",
               color: "var(--cg-text)",
             }}
-            disabled
           >
-            <GitBranch className="w-5 h-5" style={{ color: "var(--cg-text-muted)" }} />
+            <GitBranch className="w-5 h-5" style={{ color: "var(--cg-accent)" }} />
             <div>
               <div className="font-medium">Clone GitHub Repo</div>
               <div className="text-sm" style={{ color: "var(--cg-text-muted)" }}>
-                Coming soon — connect a repository to diagnose
+                Open workspace, then use Clone GitHub Repo in the top bar
               </div>
             </div>
-          </button>
+          </Link>
         </div>
 
         <div className="grid md:grid-cols-3 gap-4">

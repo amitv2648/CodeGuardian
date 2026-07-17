@@ -104,6 +104,16 @@ export function GuardianPanel() {
             ))
           )}
         </div>
+        <div className="px-3 py-2 border-t" style={{ borderColor: "var(--cg-border)" }}>
+          <button
+            type="button"
+            onClick={fixAllIssues}
+            disabled={issues.length === 0 || isRepairing}
+            className="cg-btn-primary w-full text-xs"
+          >
+            Fix Errors
+          </button>
+        </div>
       </div>
 
       {/* Selected Issue Details */}

@@ -2,15 +2,14 @@
 
 import { useTheme } from "@/hooks/useTheme";
 import { useWorkspace } from "./WorkspaceContext";
-import { DEMO_REPO_NAME } from "@/lib/mockData";
 
 export function StatusBar() {
-  const { repairPhase, verificationStatus, issues, fixedIssueIds } = useWorkspace();
+  const { repairPhase, verificationStatus, issues, fixedIssueIds, repoName } = useWorkspace();
   const { theme } = useTheme();
 
   const items = [
     { label: "Authenticated", ok: true },
-    { label: "Demo repo loaded", ok: true },
+    { label: repoName ? "Repository loaded" : "Empty IDE", ok: Boolean(repoName) },
     {
       label: issues.length > 0 ? "Diagnostics ready" : "Awaiting diagnose",
       ok: issues.length > 0,
@@ -55,7 +54,7 @@ export function StatusBar() {
           </span>
         ))}
       </div>
-      <span>{DEMO_REPO_NAME}</span>
+      <span>{repoName ?? "No repository"}</span>
     </footer>
   );
 }

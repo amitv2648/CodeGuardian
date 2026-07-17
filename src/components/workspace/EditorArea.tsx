@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { X } from "lucide-react";
-import { mockFileContents } from "@/lib/mockData";
 import { useTheme } from "@/hooks/useTheme";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -26,9 +25,16 @@ function getLanguage(path: string): string {
 }
 
 export function EditorArea() {
-  const { openTabs, activeFile, setActiveFile, closeTab } = useWorkspace();
+  const {
+    openTabs,
+    activeFile,
+    setActiveFile,
+    closeTab,
+    fileContents,
+    updateFileContent,
+  } = useWorkspace();
   const { theme } = useTheme();
-  const content = mockFileContents[activeFile] ?? "// File not found";
+  const content = activeFile ? fileContents[activeFile] ?? "// File not found" : "";
 
   return (
     <div className="flex flex-col h-full min-w-0">
@@ -72,13 +78,22 @@ export function EditorArea() {
       </div>
 
       <div className="flex-1 min-h-0">
+        {!activeFile ? (
+          <div
+            className="h-full flex items-center justify-center text-sm"
+            style={{ color: "var(--cg-text-muted)" }}
+          >
+            No file open. Select a file from Explorer.
+          </div>
+        ) : (
         <MonacoEditor
           key={`${activeFile}-${theme.id}`}
           language={getLanguage(activeFile)}
           value={content}
+          onChange={(next) => updateFileContent(activeFile, next)}
           theme={theme.monacoTheme}
           options={{
-            readOnly: true,
+            readOnly: false,
             minimap: { enabled: false },
             fontSize: 13,
             lineNumbers: "on",
@@ -89,6 +104,7 @@ export function EditorArea() {
             automaticLayout: true,
           }}
         />
+        )}
       </div>
     </div>
   );

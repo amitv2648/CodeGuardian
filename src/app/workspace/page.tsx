@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { IDEWorkspace } from "@/components/workspace/IDEWorkspace";
@@ -9,6 +9,8 @@ import { IDEWorkspace } from "@/components/workspace/IDEWorkspace";
 export default function WorkspacePage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoloadDemo = searchParams.get("demo") === "true";
 
   useEffect(() => {
     if (!loading && !user) {
@@ -26,5 +28,5 @@ export default function WorkspacePage() {
 
   if (!user) return null;
 
-  return <IDEWorkspace />;
+  return <IDEWorkspace autoloadDemo={autoloadDemo} />;
 }
