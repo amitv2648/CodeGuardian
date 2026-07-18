@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   Shield,
   Monitor,
@@ -54,9 +53,10 @@ export default function DashboardPage() {
         </p>
 
         <div className="grid gap-3 mb-10">
-          <Link
-            href="/workspace"
-            className="flex items-center gap-3 p-4 rounded-lg border no-underline transition-colors"
+          <button
+            type="button"
+            onClick={() => router.push("/workspace")}
+            className="flex items-center gap-3 p-4 rounded-lg border text-left cursor-pointer transition-colors"
             style={{
               background: "var(--cg-bg-secondary)",
               borderColor: "var(--cg-border)",
@@ -70,10 +70,11 @@ export default function DashboardPage() {
                 Launch the full debugging workspace
               </div>
             </div>
-          </Link>
-          <Link
-            href="/workspace?demo=true"
-            className="flex items-center gap-3 p-4 rounded-lg border no-underline"
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/workspace?demo=true")}
+            className="flex items-center gap-3 p-4 rounded-lg border text-left cursor-pointer"
             style={{
               background: "var(--cg-bg-secondary)",
               borderColor: "var(--cg-border)",
@@ -87,10 +88,11 @@ export default function DashboardPage() {
                 codeguardian-demo-broken-portfolio
               </div>
             </div>
-          </Link>
-          <Link
-            href="/workspace"
-            className="flex items-center gap-3 p-4 rounded-lg border no-underline"
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/workspace")}
+            className="flex items-center gap-3 p-4 rounded-lg border text-left cursor-pointer"
             style={{
               background: "var(--cg-bg-secondary)",
               borderColor: "var(--cg-border)",
@@ -104,7 +106,7 @@ export default function DashboardPage() {
                 Open workspace, then use Clone GitHub Repo in the top bar
               </div>
             </div>
-          </Link>
+          </button>
         </div>
 
         <div className="grid md:grid-cols-3 gap-4">

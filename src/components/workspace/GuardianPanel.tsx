@@ -44,7 +44,7 @@ export function GuardianPanel() {
 
   return (
     <aside
-      className="flex flex-col w-80 shrink-0 border-l"
+      className="flex flex-col w-96 shrink-0 border-l"
       style={{
         background: "var(--cg-bg-secondary)",
         borderColor: "var(--cg-border)",
@@ -56,6 +56,14 @@ export function GuardianPanel() {
       >
         <Shield className="w-4 h-4" style={{ color: "var(--cg-accent)" }} />
         <span className="font-semibold text-xs">Guardian Panel</span>
+      </div>
+      <div className="px-3 py-2 border-b text-xs" style={{ borderColor: "var(--cg-border)" }}>
+        <p className="m-0 font-medium" style={{ color: "var(--cg-accent)" }}>
+          AI Debug Chat is active
+        </p>
+        <p className="m-0 mt-0.5" style={{ color: "var(--cg-text-muted)" }}>
+          Ask Guardian to explain root cause, minimal patch scope, and verification steps.
+        </p>
       </div>
 
       {/* Detected Issues */}
@@ -167,7 +175,7 @@ export function GuardianPanel() {
           className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider shrink-0"
           style={{ color: "var(--cg-text-muted)" }}
         >
-          Guardian Chat
+          Guardian AI Chat
         </div>
         <div className="flex-1 overflow-y-auto cg-scrollbar px-3 space-y-2">
           {chatMessages.map((msg) => (
@@ -216,7 +224,7 @@ export function GuardianPanel() {
             type="text"
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            placeholder="Ask about a failure…"
+            placeholder="Ask Guardian why this failure happens..."
             className="cg-input text-xs py-1.5 flex-1"
           />
           <button type="submit" className="cg-btn-primary px-2 py-1.5">

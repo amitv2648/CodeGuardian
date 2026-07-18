@@ -7,6 +7,7 @@ import { UserMenu } from "@/components/layout/UserMenu";
 
 export function TopBar() {
   const {
+    demoMode,
     repoName,
     isCloningRepo,
     repairPhase,
@@ -23,7 +24,7 @@ export function TopBar() {
     if (!url) return;
     const ok = await cloneGithubRepo(url);
     if (!ok) {
-      window.alert("Invalid GitHub repository URL. Example: https://github.com/org/repo");
+      window.alert("Unable to clone repository. Check URL/public access and try again.");
     }
   }
 
@@ -51,12 +52,12 @@ export function TopBar() {
             color: "var(--cg-accent)",
           }}
         >
-          Debugger Mode
+          {demoMode ? "Demo Workflow" : "Debugger Mode"}
         </span>
       </div>
 
       <div className="flex items-center gap-3">
-        {!repoName && (
+        {!repoName && !demoMode && (
           <>
             <button
               type="button"
@@ -78,7 +79,7 @@ export function TopBar() {
           </>
         )}
 
-        {repoName && (
+        {repoName && !demoMode && (
           <button
             type="button"
             onClick={resetWorkspace}
@@ -103,7 +104,7 @@ export function TopBar() {
           {isDiagnosing ? "Diagnosing…" : "Diagnose"}
         </button>
         <ThemeSelector />
-        <UserMenu />
+        {!demoMode && <UserMenu />}
       </div>
     </header>
   );

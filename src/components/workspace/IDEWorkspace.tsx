@@ -10,6 +10,8 @@ import { StatusBar } from "./StatusBar";
 import { GuardianPanel } from "./GuardianPanel";
 import { RepairPlanModal } from "./RepairPlanModal";
 import { RepairReportModal } from "./RepairReportModal";
+import { CommitChangesModal } from "./CommitChangesModal";
+import { DemoOutcomeModal } from "./DemoOutcomeModal";
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";
 
 function IDEWorkspaceContent({ autoloadDemo }: { autoloadDemo?: boolean }) {
@@ -46,13 +48,21 @@ function IDEWorkspaceContent({ autoloadDemo }: { autoloadDemo?: boolean }) {
       <StatusBar />
       <RepairPlanModal />
       <RepairReportModal />
+      <CommitChangesModal />
+      <DemoOutcomeModal />
     </div>
   );
 }
 
-export function IDEWorkspace({ autoloadDemo = false }: { autoloadDemo?: boolean }) {
+export function IDEWorkspace({
+  autoloadDemo = false,
+  demoMode = false,
+}: {
+  autoloadDemo?: boolean;
+  demoMode?: boolean;
+}) {
   return (
-    <WorkspaceProvider>
+    <WorkspaceProvider demoMode={demoMode}>
       <IDEWorkspaceContent autoloadDemo={autoloadDemo} />
     </WorkspaceProvider>
   );

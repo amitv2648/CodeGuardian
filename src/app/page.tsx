@@ -48,7 +48,7 @@ export default function LandingPage() {
             <Link href="/login" className="cg-btn-primary inline-flex items-center gap-2 no-underline">
               Get Started <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link href="/workspace" className="cg-btn-secondary inline-flex items-center gap-2 no-underline">
+            <Link href="/demo" className="cg-btn-secondary inline-flex items-center gap-2 no-underline">
               View Demo Workflow
             </Link>
           </div>

@@ -1,10 +1,20 @@
 "use client";
 
+import { GitCommitHorizontal } from "lucide-react";
 import { useWorkspace } from "./WorkspaceContext";
 import { FileExplorer } from "./FileExplorer";
 
 export function LeftSidebar() {
-  const { activityView, issues, fixedIssueIds, repoName, repoSource, setShowRepairReport } = useWorkspace();
+  const {
+    activityView,
+    issues,
+    fixedIssueIds,
+    repoName,
+    repoSource,
+    setShowRepairReport,
+    setShowCommitModal,
+    commitHistory,
+  } = useWorkspace();
 
   const titles: Record<string, string> = {
     explorer: "Explorer",
@@ -112,6 +122,29 @@ export function LeftSidebar() {
               </p>
             </div>
           </div>
+        )}
+      </div>
+
+      <div
+        className="shrink-0 border-t p-2 space-y-1.5"
+        style={{ borderColor: "var(--cg-border)", background: "var(--cg-bg-tertiary)" }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowCommitModal(true)}
+          disabled={!repoName || fixedIssueIds.length === 0}
+          className="cg-btn-primary w-full text-xs flex items-center justify-center gap-1.5"
+        >
+          <GitCommitHorizontal className="w-3 h-3" />
+          Commit Changes
+        </button>
+        <p className="text-[10px] m-0 px-1" style={{ color: "var(--cg-text-muted)" }}>
+          Stage specific fixed issues and choose your commit message.
+        </p>
+        {commitHistory[0] && (
+          <p className="text-[10px] m-0 px-1 truncate" style={{ color: "var(--cg-text-muted)" }}>
+            Last commit: {commitHistory[0].message}
+          </p>
         )}
       </div>
     </aside>

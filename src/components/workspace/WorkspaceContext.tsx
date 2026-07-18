@@ -25,6 +25,18 @@ import {
   terminalOutputBefore,
   terminalOutputAfter,
 } from "@/lib/mockData";
+import {
+  DEMO_WORKFLOW_REPO_NAME,
+  demoWorkflowChat,
+  demoWorkflowCommands,
+  demoWorkflowDiffs,
+  demoWorkflowFileContents,
+  demoWorkflowFileTree,
+  demoWorkflowIssues,
+  demoWorkflowRepairPlans,
+  demoWorkflowTerminalAfter,
+  demoWorkflowTerminalBefore,
+} from "@/lib/demoData";
 
 export type ActivityView = "explorer" | "diagnostics" | "repairs" | "reports" | "settings";
 export type BottomTab = "terminal" | "diagnostics" | "verification";
@@ -32,7 +44,29 @@ export type RepairPhase = "idle" | "diagnosing" | "diagnosed" | "planning" | "pr
 export type VerificationStatus = "pending" | "failed" | "passed";
 export type RepoSource = "none" | "demo" | "github";
 
+interface CommitRecord {
+  id: string;
+  message: string;
+  issueIds: string[];
+  files: string[];
+  createdAt: string;
+}
+
+interface WorkspaceDataset {
+  repoName: string;
+  fileTree: FileNode[];
+  fileContents: Record<string, string>;
+  issues: DetectedIssue[];
+  repairPlans: Record<string, RepairPlan>;
+  diffs: Record<string, DiffHunk>;
+  terminalBefore: string;
+  terminalAfter: string;
+  initialChat: ChatMessage[];
+  commands: string[];
+}
+
 interface WorkspaceContextValue {
+  demoMode: boolean;
   repoName: string | null;
   repoSource: RepoSource;
   isCloningRepo: boolean;
@@ -60,9 +94,16 @@ interface WorkspaceContextValue {
   terminalOutput: string;
   showRepairReport: boolean;
   setShowRepairReport: (show: boolean) => void;
+  showCommitModal: boolean;
+  setShowCommitModal: (show: boolean) => void;
+  commitHistory: CommitRecord[];
+  showDemoOutcome: boolean;
+  setShowDemoOutcome: (show: boolean) => void;
+  diagnosticCommands: string[];
   loadDemoRepo: () => void;
   cloneGithubRepo: (url: string) => Promise<boolean>;
   resetWorkspace: () => void;
+  commitChanges: (issueIds: string[], message: string) => boolean;
   diagnose: () => void;
   fixSelectedIssue: () => void;
   fixAllIssues: () => void;
@@ -85,7 +126,40 @@ npm run typecheck
 npm test
 npm run build`;
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
+const appDataset: WorkspaceDataset = {
+  repoName: DEMO_REPO_NAME,
+  fileTree: cloneMockFileTree(),
+  fileContents: cloneMockFileContents(),
+  issues: mockIssues,
+  repairPlans: mockRepairPlans,
+  diffs: mockDiffs,
+  terminalBefore: terminalOutputBefore,
+  terminalAfter: terminalOutputAfter,
+  initialChat: initialChatMessages,
+  commands: ["npm run typecheck", "npm test", "npm run build"],
+};
+
+const demoDataset: WorkspaceDataset = {
+  repoName: DEMO_WORKFLOW_REPO_NAME,
+  fileTree: demoWorkflowFileTree,
+  fileContents: demoWorkflowFileContents,
+  issues: demoWorkflowIssues,
+  repairPlans: demoWorkflowRepairPlans,
+  diffs: demoWorkflowDiffs,
+  terminalBefore: demoWorkflowTerminalBefore,
+  terminalAfter: demoWorkflowTerminalAfter,
+  initialChat: demoWorkflowChat,
+  commands: demoWorkflowCommands,
+};
+
+export function WorkspaceProvider({
+  children,
+  demoMode = false,
+}: {
+  children: ReactNode;
+  demoMode?: boolean;
+}) {
+  const dataset = demoMode ? demoDataset : appDataset;
   const [repoName, setRepoName] = useState<string | null>(null);
   const [repoSource, setRepoSource] = useState<RepoSource>("none");
   const [isCloningRepo, setIsCloningRepo] = useState(false);
@@ -102,9 +176,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [fixedIssueIds, setFixedIssueIds] = useState<string[]>([]);
   const [currentRepairPlan, setCurrentRepairPlan] = useState<RepairPlan | null>(null);
   const [currentDiff, setCurrentDiff] = useState<DiffHunk | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(dataset.initialChat);
   const [terminalOutput, setTerminalOutput] = useState(terminalOutputIdle);
   const [showRepairReport, setShowRepairReport] = useState(false);
+  const [showCommitModal, setShowCommitModal] = useState(false);
+  const [commitHistory, setCommitHistory] = useState<CommitRecord[]>([]);
+  const [showDemoOutcome, setShowDemoOutcome] = useState(false);
   const [pendingFixAll, setPendingFixAll] = useState(false);
   const [fixAllQueue, setFixAllQueue] = useState<string[]>([]);
 
@@ -124,7 +201,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setFixAllQueue([]);
     setBottomTab("terminal");
     setTerminalOutput(terminalOutputIdle);
-  }, []);
+    setShowCommitModal(false);
+    setShowDemoOutcome(false);
+    setChatMessages(dataset.initialChat);
+  }, [dataset]);
 
   const resetWorkspace = useCallback(() => {
     setRepoName(null);
@@ -133,17 +213,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setFileContents({});
     setOpenTabs([]);
     setActiveFileState(null);
+    setCommitHistory([]);
     resetIssueState();
   }, [resetIssueState]);
 
   const loadDemoRepo = useCallback(() => {
-    setRepoName(DEMO_REPO_NAME);
+    setRepoName(dataset.repoName);
     setRepoSource("demo");
-    setFileTree(cloneMockFileTree());
-    setFileContents(cloneMockFileContents());
-    setOpenTabs(["src/App.tsx"]);
-    setActiveFileState("src/App.tsx");
-    setTerminalOutput(terminalOutputBefore);
+    setFileTree(JSON.parse(JSON.stringify(dataset.fileTree)) as FileNode[]);
+    setFileContents({ ...dataset.fileContents });
+    const firstFile = Object.keys(dataset.fileContents)[0] ?? null;
+    setOpenTabs(firstFile ? [firstFile] : []);
+    setActiveFileState(firstFile);
+    setTerminalOutput(dataset.terminalBefore);
     setBottomTab("terminal");
     setIssues([]);
     setSelectedIssueId(null);
@@ -152,7 +234,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setFixedIssueIds([]);
     setCurrentRepairPlan(null);
     setCurrentDiff(null);
-  }, []);
+    setCommitHistory([]);
+    setShowDemoOutcome(false);
+    setChatMessages(dataset.initialChat);
+  }, [dataset]);
 
   const cloneGithubRepo = useCallback(async (url: string) => {
     const parsedName = extractRepoNameFromUrl(url.trim());
@@ -200,26 +285,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setFixedIssueIds([]);
       setCurrentRepairPlan(null);
       setCurrentDiff(null);
+      setCommitHistory([]);
       return true;
     } catch {
-      setRepoName(parsedName);
-      setRepoSource("github");
-      setFileTree(cloneMockFileTree());
-      setFileContents(cloneMockFileContents());
-      setOpenTabs(["src/App.tsx"]);
-      setActiveFileState("src/App.tsx");
-      setTerminalOutput(
-        `$ Repository loaded: ${parsedName}\n$ Source: GitHub clone (fallback mock)\n\nRun Diagnose to detect reproducible failures.`
-      );
-      setBottomTab("terminal");
-      setIssues([]);
-      setSelectedIssueId(null);
-      setRepairPhase("idle");
-      setVerificationStatus("pending");
-      setFixedIssueIds([]);
-      setCurrentRepairPlan(null);
-      setCurrentDiff(null);
-      return true;
+      return false;
     } finally {
       setIsCloningRepo(false);
     }
@@ -246,17 +315,65 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setFileContents((prev) => ({ ...prev, [path]: content }));
   }, []);
 
+  const commitChanges = useCallback(
+    (issueIds: string[], message: string) => {
+      const trimmed = message.trim();
+      if (!repoName || issueIds.length === 0 || !trimmed) {
+        return false;
+      }
+
+      const allowedIds = new Set(fixedIssueIds);
+      const selectedIssues = issues.filter(
+        (issue) => issueIds.includes(issue.id) && allowedIds.has(issue.id)
+      );
+      if (selectedIssues.length === 0) {
+        return false;
+      }
+
+      const files = [...new Set(selectedIssues.map((issue) => issue.file))];
+      const commitId = Date.now().toString(16).slice(-7);
+      const record: CommitRecord = {
+        id: commitId,
+        message: trimmed,
+        issueIds: selectedIssues.map((issue) => issue.id),
+        files,
+        createdAt: new Date().toISOString(),
+      };
+
+      setCommitHistory((prev) => [record, ...prev]);
+      setShowCommitModal(false);
+      if (demoMode) {
+        setShowDemoOutcome(true);
+      }
+      setBottomTab("terminal");
+      setTerminalOutput(
+        (prev) =>
+          `${prev}\n\n$ git add ${files.join(" ")}\n$ git commit -m "${trimmed}"\n[${repoName} ${commitId}] ${trimmed}\n ${files.length} file(s) changed`
+      );
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}-commit`,
+          role: "guardian",
+          content: `Commit recorded with message "${trimmed}". ${selectedIssues.length} issue repair(s) included.`,
+        },
+      ]);
+      return true;
+    },
+    [repoName, issues, fixedIssueIds, demoMode]
+  );
+
   const diagnose = useCallback(() => {
     if (!repoName) return;
     setRepairPhase("diagnosing");
     setBottomTab("diagnostics");
     setTimeout(() => {
-      setIssues(mockIssues.map((i) => ({ ...i, status: "detected" as const })));
+      setIssues(dataset.issues.map((i) => ({ ...i, status: "detected" as const })));
       setRepairPhase("diagnosed");
       setActivityView("diagnostics");
-      setSelectedIssueId("issue-1");
+      setSelectedIssueId(dataset.issues[0]?.id ?? null);
     }, 1500);
-  }, [repoName]);
+  }, [repoName, dataset]);
 
   const startRepairForIssue = useCallback((issueId: string) => {
     setSelectedIssueId(issueId);
@@ -265,15 +382,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       prev.map((i) => (i.id === issueId ? { ...i, status: "repairing" } : i))
     );
     setTimeout(() => {
-      setCurrentRepairPlan(mockRepairPlans[issueId] ?? null);
-      setCurrentDiff(mockDiffs[issueId] ?? null);
+      setCurrentRepairPlan(dataset.repairPlans[issueId] ?? null);
+      setCurrentDiff(dataset.diffs[issueId] ?? null);
       setRepairPhase("preview");
-      const plan = mockRepairPlans[issueId];
+      const plan = dataset.repairPlans[issueId];
       if (plan?.filesChanged[0]) {
         openFile(plan.filesChanged[0]);
       }
     }, 800);
-  }, [openFile]);
+  }, [openFile, dataset]);
 
   const fixSelectedIssue = useCallback(() => {
     if (!selectedIssueId) return;
@@ -304,7 +421,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             i.id === selectedIssueId ? { ...i, status: "verified" } : i
           )
         );
-        setTerminalOutput(terminalOutputAfter);
+        setTerminalOutput(dataset.terminalAfter);
 
         if (pendingFixAll && fixAllQueue.length > 0) {
           const [next, ...rest] = fixAllQueue;
@@ -319,7 +436,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
       }, 2000);
     }, 1000);
-  }, [selectedIssueId, pendingFixAll, fixAllQueue, startRepairForIssue]);
+  }, [selectedIssueId, pendingFixAll, fixAllQueue, startRepairForIssue, dataset]);
 
   const cancelRepair = useCallback(() => {
     setRepairPhase("diagnosed");
@@ -393,6 +510,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   return (
     <WorkspaceContext.Provider
       value={{
+        demoMode,
         repoName,
         repoSource,
         isCloningRepo,
@@ -420,9 +538,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         terminalOutput,
         showRepairReport,
         setShowRepairReport,
+        showCommitModal,
+        setShowCommitModal,
+        commitHistory,
+        showDemoOutcome,
+        setShowDemoOutcome,
+        diagnosticCommands: dataset.commands,
         loadDemoRepo,
         cloneGithubRepo,
         resetWorkspace,
+        commitChanges,
         diagnose,
         fixSelectedIssue,
         fixAllIssues,

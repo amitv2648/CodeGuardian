@@ -1,15 +1,17 @@
 "use client";
 
 import { X, Copy, Download, CheckCircle } from "lucide-react";
-import {
-  DEMO_REPO_NAME,
-  diagnosticCommands,
-  mockIssues,
-} from "@/lib/mockData";
 import { useWorkspace } from "./WorkspaceContext";
 
 export function RepairReportModal() {
-  const { showRepairReport, setShowRepairReport, fixedIssueIds, issues } = useWorkspace();
+  const {
+    showRepairReport,
+    setShowRepairReport,
+    fixedIssueIds,
+    issues,
+    repoName,
+    diagnosticCommands,
+  } = useWorkspace();
 
   if (!showRepairReport) return null;
 
@@ -19,13 +21,13 @@ export function RepairReportModal() {
   const reportText = `# CodeGuardian Repair Report
 
 ## Repository
-${DEMO_REPO_NAME}
+${repoName ?? "No repository loaded"}
 
 ## Diagnostic Commands Run
 ${diagnosticCommands.map((c) => `- ${c}`).join("\n")}
 
 ## Issues Found
-${mockIssues.length}
+${issues.length}
 
 ## Issues Fixed
 ${fixedIssueIds.length}
@@ -59,7 +61,7 @@ CodeGuardian applied minimal patches within defined repair boundaries and verifi
           <div>
             <h2 className="font-semibold text-sm m-0">Repair Report</h2>
             <p className="text-xs m-0 mt-0.5" style={{ color: "var(--cg-text-muted)" }}>
-              Verified Repair · {DEMO_REPO_NAME}
+              Verified Repair · {repoName ?? "No repository loaded"}
             </p>
           </div>
           <button
@@ -75,7 +77,7 @@ CodeGuardian applied minimal patches within defined repair boundaries and verifi
         <div className="p-4 overflow-y-auto cg-scrollbar space-y-4 text-sm flex-1">
           <ReportSection title="What was broken?">
             <ul className="m-0 pl-4 space-y-1">
-              {mockIssues.map((i) => (
+              {issues.map((i) => (
                 <li key={i.id}>{i.title} — {i.file}</li>
               ))}
             </ul>
@@ -83,7 +85,7 @@ CodeGuardian applied minimal patches within defined repair boundaries and verifi
 
           <ReportSection title="Why was it broken?">
             <ul className="m-0 pl-4 space-y-1">
-              {mockIssues.map((i) => (
+              {issues.map((i) => (
                 <li key={i.id}>{i.rootCause}</li>
               ))}
             </ul>
