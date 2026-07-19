@@ -11,6 +11,7 @@ export default function WorkspacePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const autoloadDemo = searchParams.get("demo") === "true";
+  const sessionId = searchParams.get("session");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -28,5 +29,5 @@ export default function WorkspacePage() {
 
   if (!user) return null;
 
-  return <IDEWorkspace autoloadDemo={autoloadDemo} />;
+  return <IDEWorkspace autoloadDemo={autoloadDemo} initialSessionId={sessionId} />;
 }

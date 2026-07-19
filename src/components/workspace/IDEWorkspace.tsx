@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 import { TopBar } from "./TopBar";
 import { ActivityBar } from "./ActivityBar";
-import { LeftSidebar } from "./LeftSidebar";
 import { EditorArea } from "./EditorArea";
 import { BottomPanel } from "./BottomPanel";
 import { StatusBar } from "./StatusBar";
-import { GuardianPanel } from "./GuardianPanel";
+import { IssuesPanel } from "./IssuesPanel";
+import { ChatPanel } from "./ChatPanel";
 import { RepairPlanModal } from "./RepairPlanModal";
 import { RepairReportModal } from "./RepairReportModal";
 import { CommitChangesModal } from "./CommitChangesModal";
@@ -32,14 +32,13 @@ function IDEWorkspaceContent({ autoloadDemo }: { autoloadDemo?: boolean }) {
 
       <div className="flex flex-1 min-h-0">
         <ActivityBar />
-        <LeftSidebar />
-
         <div className="flex flex-col flex-1 min-w-0">
           <div className="flex flex-1 min-h-0">
             <div className="flex flex-col flex-1 min-w-0">
               <EditorArea />
             </div>
-            <GuardianPanel />
+            <IssuesPanel />
+            <ChatPanel />
           </div>
           <BottomPanel />
         </div>
@@ -57,12 +56,14 @@ function IDEWorkspaceContent({ autoloadDemo }: { autoloadDemo?: boolean }) {
 export function IDEWorkspace({
   autoloadDemo = false,
   demoMode = false,
+  initialSessionId = null,
 }: {
   autoloadDemo?: boolean;
   demoMode?: boolean;
+  initialSessionId?: string | null;
 }) {
   return (
-    <WorkspaceProvider demoMode={demoMode}>
+    <WorkspaceProvider demoMode={demoMode} initialSessionId={initialSessionId}>
       <IDEWorkspaceContent autoloadDemo={autoloadDemo} />
     </WorkspaceProvider>
   );

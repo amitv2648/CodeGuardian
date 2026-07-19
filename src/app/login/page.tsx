@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/dashboard");
+      router.replace("/workspace");
     }
   }, [user, authLoading, router]);
 
@@ -32,7 +32,7 @@ export default function LoginPage() {
       } else {
         await signIn(email, password);
       }
-      router.replace("/dashboard");
+      router.replace("/workspace");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Authentication failed";
       setError(message);
@@ -46,7 +46,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      router.replace("/dashboard");
+      router.replace("/workspace");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Google sign-in failed";
       setError(message);

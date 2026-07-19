@@ -5,6 +5,8 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
+  useRef,
   ReactNode,
 } from "react";
 import {
@@ -37,6 +39,7 @@ import {
   demoWorkflowTerminalAfter,
   demoWorkflowTerminalBefore,
 } from "@/lib/demoData";
+import { getSavedSession, upsertSavedSession } from "@/lib/sessions";
 
 export type ActivityView = "explorer" | "diagnostics" | "repairs" | "reports" | "settings";
 export type BottomTab = "terminal" | "diagnostics" | "verification";
@@ -91,6 +94,8 @@ interface WorkspaceContextValue {
   currentRepairPlan: RepairPlan | null;
   currentDiff: DiffHunk | null;
   chatMessages: ChatMessage[];
+  isChatLoading: boolean;
+  chatError: string | null;
   terminalOutput: string;
   showRepairReport: boolean;
   setShowRepairReport: (show: boolean) => void;
@@ -100,17 +105,19 @@ interface WorkspaceContextValue {
   showDemoOutcome: boolean;
   setShowDemoOutcome: (show: boolean) => void;
   diagnosticCommands: string[];
+  currentSessionId: string | null;
   loadDemoRepo: () => void;
   cloneGithubRepo: (url: string) => Promise<boolean>;
   resetWorkspace: () => void;
+  saveSessionNow: () => void;
   commitChanges: (issueIds: string[], message: string) => boolean;
   diagnose: () => void;
   fixSelectedIssue: () => void;
   fixAllIssues: () => void;
   applyPatch: () => void;
   cancelRepair: () => void;
-  sendChatMessage: (text: string) => void;
-  handleQuickAction: (action: string) => void;
+  sendChatMessage: (text: string) => Promise<void>;
+  handleQuickAction: (action: string) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -155,9 +162,11 @@ const demoDataset: WorkspaceDataset = {
 export function WorkspaceProvider({
   children,
   demoMode = false,
+  initialSessionId,
 }: {
   children: ReactNode;
   demoMode?: boolean;
+  initialSessionId?: string | null;
 }) {
   const dataset = demoMode ? demoDataset : appDataset;
   const [repoName, setRepoName] = useState<string | null>(null);
@@ -177,6 +186,8 @@ export function WorkspaceProvider({
   const [currentRepairPlan, setCurrentRepairPlan] = useState<RepairPlan | null>(null);
   const [currentDiff, setCurrentDiff] = useState<DiffHunk | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(dataset.initialChat);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [terminalOutput, setTerminalOutput] = useState(terminalOutputIdle);
   const [showRepairReport, setShowRepairReport] = useState(false);
   const [showCommitModal, setShowCommitModal] = useState(false);
@@ -184,6 +195,8 @@ export function WorkspaceProvider({
   const [showDemoOutcome, setShowDemoOutcome] = useState(false);
   const [pendingFixAll, setPendingFixAll] = useState(false);
   const [fixAllQueue, setFixAllQueue] = useState<string[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const restoringSessionRef = useRef(false);
 
   const setActiveFile = useCallback((path: string | null) => {
     setActiveFileState(path);
@@ -204,6 +217,7 @@ export function WorkspaceProvider({
     setShowCommitModal(false);
     setShowDemoOutcome(false);
     setChatMessages(dataset.initialChat);
+    setChatError(null);
   }, [dataset]);
 
   const resetWorkspace = useCallback(() => {
@@ -214,6 +228,7 @@ export function WorkspaceProvider({
     setOpenTabs([]);
     setActiveFileState(null);
     setCommitHistory([]);
+    setCurrentSessionId(null);
     resetIssueState();
   }, [resetIssueState]);
 
@@ -314,6 +329,55 @@ export function WorkspaceProvider({
     if (typeof content !== "string") return;
     setFileContents((prev) => ({ ...prev, [path]: content }));
   }, []);
+
+  const saveSessionNow = useCallback(() => {
+    if (demoMode) return;
+    const id = currentSessionId ?? crypto.randomUUID();
+    const label = repoName ?? "Untitled Debug Session";
+    upsertSavedSession({
+      id,
+      label,
+      updatedAt: new Date().toISOString(),
+      state: {
+        repoName,
+        repoSource,
+        fileTree,
+        fileContents,
+        openTabs,
+        activeFile,
+        activityView,
+        bottomTab,
+        issues,
+        selectedIssueId,
+        repairPhase,
+        verificationStatus,
+        fixedIssueIds,
+        chatMessages,
+        terminalOutput,
+      },
+    });
+    if (!currentSessionId) {
+      setCurrentSessionId(id);
+    }
+  }, [
+    demoMode,
+    currentSessionId,
+    repoName,
+    repoSource,
+    fileTree,
+    fileContents,
+    openTabs,
+    activeFile,
+    activityView,
+    bottomTab,
+    issues,
+    selectedIssueId,
+    repairPhase,
+    verificationStatus,
+    fixedIssueIds,
+    chatMessages,
+    terminalOutput,
+  ]);
 
   const commitChanges = useCallback(
     (issueIds: string[], message: string) => {
@@ -453,7 +517,8 @@ export function WorkspaceProvider({
     }
   }, [selectedIssueId]);
 
-  const sendChatMessage = useCallback((text: string) => {
+  const sendChatMessage = useCallback(async (text: string) => {
+    setChatError(null);
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: "user",
@@ -461,10 +526,39 @@ export function WorkspaceProvider({
     };
     setChatMessages((prev) => [...prev, userMsg]);
 
-    setTimeout(() => {
+    setIsChatLoading(true);
+    try {
+      const selectedIssue = selectedIssueId
+        ? issues.find((issue) => issue.id === selectedIssueId) ?? null
+        : null;
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repoName,
+          diagnosticCommands: dataset.commands,
+          selectedIssue,
+          messages: [...chatMessages, userMsg],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Guardian AI request failed");
+      }
+
+      const result = (await response.json()) as { reply?: string };
+      const reply =
+        result.reply?.trim() ||
+        "I can help diagnose reproducible failures and propose minimal verified repairs.";
+      const guardianMsg: ChatMessage = {
+        id: `msg-${Date.now()}-g`,
+        role: "guardian",
+        content: reply,
+      };
+      setChatMessages((prev) => [...prev, guardianMsg]);
+    } catch {
       const lower = text.toLowerCase();
       let response: string;
-
       if (
         lower.includes("new feature") ||
         lower.includes("add a feature") ||
@@ -476,36 +570,88 @@ export function WorkspaceProvider({
         response = featureRequestResponse;
       } else if (lower.includes("why") || lower.includes("root cause")) {
         response =
-          "The build is failing because src/App.tsx imports ProjectCard from './components/ProjectsCard', but the actual file is ProjectCard.tsx. This is a reproducible module resolution failure.";
+          "I could not reach the AI backend right now. Root cause review: start with the selected failing file and verify the exact command output before patching.";
       } else if (lower.includes("fix") || lower.includes("patch")) {
         response =
-          "I recommend a minimal patch: change the import to './components/ProjectCard'. Repair boundary: import path only. Verification: npm run build.";
+          "I could not reach the AI backend right now. Fallback plan: apply the smallest patch in the selected file and rerun the failing command.";
       } else {
         response =
-          "I can help diagnose reproducible failures, propose minimal patches, and verify repairs. Select an issue from the panel or ask about a specific failure.";
+          "Guardian AI is temporarily unavailable. I can still assist using fallback debugging guidance until the API is reachable.";
       }
-
+      setChatError("Guardian AI temporarily unavailable. Using fallback responses.");
       const guardianMsg: ChatMessage = {
         id: `msg-${Date.now()}-g`,
         role: "guardian",
         content: response,
       };
       setChatMessages((prev) => [...prev, guardianMsg]);
-    }, 600);
-  }, []);
+    } finally {
+      setIsChatLoading(false);
+    }
+  }, [chatMessages, dataset.commands, issues, repoName, selectedIssueId]);
 
   const handleQuickAction = useCallback(
-    (action: string) => {
+    async (action: string) => {
       const prompts: Record<string, string> = {
         "Explain root cause": "Why is the build failing? Explain the root cause.",
         "Propose minimal fix": "Propose a minimal fix for the selected issue.",
         "Show affected files": "Which files are affected by this issue?",
         "Verify fix": "How will you verify this fix?",
       };
-      sendChatMessage(prompts[action] ?? action);
+      await sendChatMessage(prompts[action] ?? action);
     },
     [sendChatMessage]
   );
+
+  useEffect(() => {
+    if (demoMode || !initialSessionId || restoringSessionRef.current) return;
+    const saved = getSavedSession(initialSessionId);
+    if (!saved) return;
+    restoringSessionRef.current = true;
+    setCurrentSessionId(saved.id);
+    setRepoName(saved.state.repoName);
+    setRepoSource(saved.state.repoSource);
+    setFileTree(saved.state.fileTree);
+    setFileContents(saved.state.fileContents);
+    setOpenTabs(saved.state.openTabs);
+    setActiveFileState(saved.state.activeFile);
+    setActivityView(saved.state.activityView);
+    setBottomTab(saved.state.bottomTab);
+    setIssues(saved.state.issues);
+    setSelectedIssueId(saved.state.selectedIssueId);
+    setRepairPhase(saved.state.repairPhase);
+    setVerificationStatus(saved.state.verificationStatus);
+    setFixedIssueIds(saved.state.fixedIssueIds);
+    setChatMessages(saved.state.chatMessages);
+    setTerminalOutput(saved.state.terminalOutput);
+    restoringSessionRef.current = false;
+  }, [demoMode, initialSessionId]);
+
+  useEffect(() => {
+    if (demoMode || restoringSessionRef.current) return;
+    const timeout = window.setTimeout(() => {
+      saveSessionNow();
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [
+    demoMode,
+    saveSessionNow,
+    repoName,
+    repoSource,
+    fileTree,
+    fileContents,
+    openTabs,
+    activeFile,
+    activityView,
+    bottomTab,
+    issues,
+    selectedIssueId,
+    repairPhase,
+    verificationStatus,
+    fixedIssueIds,
+    chatMessages,
+    terminalOutput,
+  ]);
 
   return (
     <WorkspaceContext.Provider
@@ -535,6 +681,8 @@ export function WorkspaceProvider({
         currentRepairPlan,
         currentDiff,
         chatMessages,
+        isChatLoading,
+        chatError,
         terminalOutput,
         showRepairReport,
         setShowRepairReport,
@@ -544,9 +692,11 @@ export function WorkspaceProvider({
         showDemoOutcome,
         setShowDemoOutcome,
         diagnosticCommands: dataset.commands,
+        currentSessionId,
         loadDemoRepo,
         cloneGithubRepo,
         resetWorkspace,
+        saveSessionNow,
         commitChanges,
         diagnose,
         fixSelectedIssue,

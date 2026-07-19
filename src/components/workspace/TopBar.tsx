@@ -1,20 +1,22 @@
 "use client";
 
-import { Shield, Search, Loader2, FolderOpen, GitBranch, RotateCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Shield, Search, Loader2, GitBranch, RotateCcw } from "lucide-react";
 import { useWorkspace } from "./WorkspaceContext";
 import { ThemeSelector } from "./ThemeSelector";
 import { UserMenu } from "@/components/layout/UserMenu";
 
 export function TopBar() {
+  const router = useRouter();
   const {
     demoMode,
     repoName,
     isCloningRepo,
     repairPhase,
     diagnose,
-    loadDemoRepo,
     cloneGithubRepo,
     resetWorkspace,
+    saveSessionNow,
   } = useWorkspace();
   const isDiagnosing = repairPhase === "diagnosing";
   const canDiagnose = Boolean(repoName) && !isCloningRepo;
@@ -28,6 +30,11 @@ export function TopBar() {
     }
   }
 
+  function goToDashboard() {
+    saveSessionNow();
+    router.push("/dashboard");
+  }
+
   return (
     <header
       className="flex items-center justify-between h-10 px-3 border-b shrink-0 text-sm"
@@ -37,10 +44,15 @@ export function TopBar() {
       }}
     >
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={goToDashboard}
+          className="flex items-center gap-2 border-none bg-transparent cursor-pointer p-0"
+          style={{ color: "var(--cg-text)" }}
+        >
           <Shield className="w-4 h-4" style={{ color: "var(--cg-accent)" }} />
           <span className="font-semibold text-xs tracking-wide">CodeGuardian</span>
-        </div>
+        </button>
         <div className="h-4 w-px" style={{ background: "var(--cg-border)" }} />
         <span className="text-xs" style={{ color: "var(--cg-text-muted)" }}>
           {repoName ?? "No repository loaded"}
@@ -59,14 +71,6 @@ export function TopBar() {
       <div className="flex items-center gap-3">
         {!repoName && !demoMode && (
           <>
-            <button
-              type="button"
-              onClick={loadDemoRepo}
-              className="cg-btn-secondary flex items-center gap-1.5 text-xs py-1 px-3"
-            >
-              <FolderOpen className="w-3 h-3" />
-              Load Demo Repo
-            </button>
             <button
               type="button"
               onClick={handleCloneClick}

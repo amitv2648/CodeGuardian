@@ -1,23 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Shield,
-  Monitor,
-  FolderOpen,
-  GitBranch,
-  Search,
-  Wrench,
-  FileText,
-  Loader2,
-} from "lucide-react";
+import { Shield, Monitor, Search, Wrench, FileText, Loader2, History } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { listSavedSessions, type SavedSession } from "@/lib/sessions";
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [sessions, setSessions] = useState<SavedSession[]>([]);
+
+  useEffect(() => {
+    setSessions(listSavedSessions());
+    router.prefetch("/workspace");
+  }, [router]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -71,42 +69,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </button>
-          <button
-            type="button"
-            onClick={() => router.push("/workspace?demo=true")}
-            className="flex items-center gap-3 p-4 rounded-lg border text-left cursor-pointer"
-            style={{
-              background: "var(--cg-bg-secondary)",
-              borderColor: "var(--cg-border)",
-              color: "var(--cg-text)",
-            }}
-          >
-            <FolderOpen className="w-5 h-5" style={{ color: "var(--cg-warning)" }} />
-            <div>
-              <div className="font-medium">Load Demo Repo</div>
-              <div className="text-sm" style={{ color: "var(--cg-text-muted)" }}>
-                codeguardian-demo-broken-portfolio
-              </div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push("/workspace")}
-            className="flex items-center gap-3 p-4 rounded-lg border text-left cursor-pointer"
-            style={{
-              background: "var(--cg-bg-secondary)",
-              borderColor: "var(--cg-border)",
-              color: "var(--cg-text)",
-            }}
-          >
-            <GitBranch className="w-5 h-5" style={{ color: "var(--cg-accent)" }} />
-            <div>
-              <div className="font-medium">Clone GitHub Repo</div>
-              <div className="text-sm" style={{ color: "var(--cg-text-muted)" }}>
-                Open workspace, then use Clone GitHub Repo in the top bar
-              </div>
-            </div>
-          </button>
         </div>
 
         <div className="grid md:grid-cols-3 gap-4">
@@ -140,6 +102,39 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        <section className="mt-10">
+          <div className="flex items-center gap-2 mb-3">
+            <History className="w-4 h-4" style={{ color: "var(--cg-accent)" }} />
+            <h2 className="text-sm font-semibold m-0">Saved Debug Sessions</h2>
+          </div>
+          {sessions.length === 0 ? (
+            <p className="text-xs" style={{ color: "var(--cg-text-muted)" }}>
+              No saved sessions yet. Open the IDE and start debugging.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => router.push(`/workspace?session=${session.id}`)}
+                  className="w-full text-left p-3 rounded-lg border cursor-pointer"
+                  style={{
+                    background: "var(--cg-bg-secondary)",
+                    borderColor: "var(--cg-border)",
+                    color: "var(--cg-text)",
+                  }}
+                >
+                  <div className="text-sm font-medium">{session.label}</div>
+                  <div className="text-[11px]" style={{ color: "var(--cg-text-muted)" }}>
+                    Last updated: {new Date(session.updatedAt).toLocaleString()}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );
